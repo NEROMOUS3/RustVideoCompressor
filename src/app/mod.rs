@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use crate::output::OutputSettings;
+use crate::settings::{ContainerFormat, EncodingSettings};
 use crate::video::{VideoFile, VideoInfo};
 
 #[derive(Debug, Default)]
@@ -9,6 +10,7 @@ pub struct AppState {
     pub output_settings: Option<OutputSettings>,
     pub output_directory: Option<PathBuf>,
     pub video_info: Option<VideoInfo>,
+    pub encoding_settings: EncodingSettings,
 }
 
 impl AppState {
@@ -20,6 +22,9 @@ impl AppState {
         if let Some(directory) = &self.output_directory {
             output_settings.directory = directory.clone();
         }
+
+        // Применяем расширение выбранного контейнера
+        output_settings.set_extension(self.container_extension());
 
         self.output_directory = Some(output_settings.directory.clone());
         self.output_settings = Some(output_settings);
@@ -50,5 +55,27 @@ impl AppState {
 
     pub fn set_video_info(&mut self, info: VideoInfo) {
         self.video_info = Some(info);
+    }
+
+    pub fn update_encoding_settings(&mut self, settings: EncodingSettings) {
+        let mut settings = settings;
+        settings.normalize();
+
+        self.encoding_settings = settings;
+
+        // Обновляем расширение выходного файла
+        let extension = self.container_extension();
+
+        if let Some(output_settings) = self.output_settings.as_mut() {
+            output_settings.set_extension(extension);
+        }
+    }
+
+    fn container_extension(&self) -> String {
+        match self.encoding_settings.container {
+            ContainerFormat::Mp4 => "mp4",
+            ContainerFormat::Mkv => "mkv",
+        }
+        .to_string()
     }
 }

@@ -4,6 +4,8 @@ import {
     HorizontalBox,
     Button,
     LineEdit,
+    CheckBox,
+    ComboBox,
 } from "std-widgets.slint";
 
 component CompressionSlider inherits Rectangle {
@@ -65,9 +67,9 @@ component CompressionSlider inherits Rectangle {
 }
 
 export component MainWindow inherits Window {
-    title: "Rust Video Compressor";
+    title: "Simple Video Compressor";
     width: 850px;
-    height: 700px;
+    height: 900px;
 
     in-out property <string> selected-file: "";
     in-out property <string> output-file-name: "";
@@ -77,6 +79,12 @@ export component MainWindow inherits Window {
     in-out property <bool> drop-zone-hovered: false;
 
     in-out property <float> compression-level: 28;
+
+    in-out property <bool> multipass-enabled: false;
+    in-out property <bool> fast-start-enabled: true;
+
+    in-out property <bool> multipass-available: true;
+    in-out property <bool> fast-start-available: true;
 
     out property <int> crf-value:
         18 + round(root.compression-level * 0.18);
@@ -98,11 +106,19 @@ export component MainWindow inherits Window {
     in-out property <string> video-fps: "";
     in-out property <string> video-codec: "";
     in-out property <string> video-size: "";
+    in-out property <string> output-full-path: "";
+
+    in-out property <int> container-index: 0;
+    in-out property <int> codec-index: 0;
 
     callback choose-file();
     callback output-file-name-changed(string);
     callback output-file-name-editing-finished();
     callback choose-output-directory();
+    callback multipass-changed(bool);
+    callback fast-start-changed(bool);
+    callback container-changed(string);
+    callback codec-changed(string);
 
     public function finish-output-name-editing() {
         root.output-file-name-editing-finished();
@@ -131,7 +147,6 @@ export component MainWindow inherits Window {
             border-color: root.drop-zone-hovered ? #36A66B : #555555;
             background: root.drop-zone-hovered ? #263B32 : #252525;
 
-            // Показываем подсказку, пока видео не выбрано
             if root.selected-file == "": Text {
                 text: "Перетащите видео сюда";
                 color: #FFFFFF;
@@ -140,7 +155,6 @@ export component MainWindow inherits Window {
                 vertical-alignment: center;
             }
 
-            // Показываем информацию после выбора видео
             if root.selected-file != "": VerticalBox {
                 padding: 14px;
                 spacing: 8px;
@@ -320,36 +334,198 @@ export component MainWindow inherits Window {
             }
         }
 
-        // Настройки сжатия
-        Text {
-            text: "Степень сжатия";
-            font-size: 20px;
-            font-weight: 600;
+        // Итоговый путь выходного файла
+        HorizontalBox {
+            spacing: 8px;
+
+            Text {
+                text: "Итоговый файл:";
+                color: #AAAAAA;
+                font-size: 13px;
+                vertical-alignment: center;
+            }
+
+            Text {
+                text: root.output-full-path == "" ? "—" : root.output-full-path;
+                color: #FFFFFF;
+                font-size: 13px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
         }
 
-        Text {
-            text: "Уровень: \{round(root.compression-level)} / 100";
-            font-size: 24px;
-            color: root.quality-color;
-            font-weight: 700;
-        }
+        // Единый блок настроек кодирования
+        Rectangle {
+            width: 100%;
+            border-width: 1px;
+            border-radius: 10px;
+            border-color: #444444;
+            background: #252525;
 
-        CompressionSlider {
-            value <=> root.compression-level;
-            active-color: root.quality-color;
-        }
+            VerticalBox {
+                padding: 10px;
+                spacing: 6px;
 
-        Text {
-            text: root.quality-description;
-            color: root.quality-color;
-            font-size: 16px;
-            font-weight: 600;
-        }
+                Text {
+                    text: "Настройки кодирования";
+                    color: #FFFFFF;
+                    font-size: 18px;
+                    font-weight: 600;
+                }
 
-        Text {
-            text: "Параметр кодирования H.264: CRF \{root.crf-value}";
-            color: #888888;
-            font-size: 13px;
+                // Первый ряд: контейнер, кодек, разрешение
+                HorizontalBox {
+                    spacing: 16px;
+
+                    // Первая колонка
+                    VerticalBox {
+                        horizontal-stretch: 1;
+                        spacing: 4px;
+
+                        VerticalBox {
+                            horizontal-stretch: 1;
+                            spacing: 4px;
+
+                            Text {
+                                text: "Контейнер";
+                                color: #AAAAAA;
+                                font-size: 12px;
+                            }
+
+                            ComboBox {
+                                model: ["MP4", "MKV"];
+                                current-index: root.container-index;
+
+                                selected(value) => {
+                                    root.container-changed(value);
+                                }
+                            }
+                        }
+
+                        Text {
+                            text: "Кодировщик: Software";
+                            color: #CCCCCC;
+                        }
+                    }
+
+                    // Вторая колонка
+                    VerticalBox {
+                        horizontal-stretch: 1;
+                        spacing: 4px;
+
+                        VerticalBox {
+                            horizontal-stretch: 1;
+                            spacing: 4px;
+
+                            Text {
+                                text: "Видеокодек";
+                                color: #AAAAAA;
+                                font-size: 12px;
+                            }
+
+                            ComboBox {
+                                model: ["H.264", "H.265"];
+                                current-index: root.codec-index;
+
+                                selected(value) => {
+                                    root.codec-changed(value);
+                                }
+                            }
+                        }
+
+                        Text {
+                            text: "Пресет: Medium";
+                            color: #CCCCCC;
+                        }
+                    }
+
+                    VerticalBox {
+                        horizontal-stretch: 1;
+                        spacing: 4px;
+
+                        Text {
+                            text: "Разрешение";
+                            color: #AAAAAA;
+                            font-size: 12px;
+                        }
+
+                        Text {
+                            text: "Оригинал";
+                            color: #CCCCCC;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+
+                // Ползунок степени сжатия
+                HorizontalBox {
+                    spacing: 12px;
+
+                    Text {
+                        text: "Степень сжатия:";
+                        color: #FFFFFF;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: "\{round(root.compression-level)} / 100";
+                        color: root.quality-color;
+                        vertical-alignment: center;
+                    }
+
+                    CompressionSlider {
+                        horizontal-stretch: 1;
+                        value <=> root.compression-level;
+                        active-color: root.quality-color;
+                        max-height: 30px;
+                        min-height: 20px;
+                    }
+                }
+
+                HorizontalBox {
+                    spacing: 12px;
+
+                    Text {
+                        text: root.quality-description;
+                        color: root.quality-color;
+                        font-size: 14px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: "CRF \{root.crf-value}";
+                        color: #888888;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Четвёртый ряд: дополнительные параметры
+                HorizontalBox {
+                    spacing: 24px;
+
+                    CheckBox {
+                        text: "Multipass";
+                        checked: root.multipass-enabled;
+                        enabled: root.multipass-available;
+
+                        toggled => {
+                            root.multipass-changed(self.checked);
+                        }
+                    }
+
+                    CheckBox {
+                        text: "Fast Start";
+                        checked: root.fast-start-enabled;
+                        enabled: root.fast-start-available;
+
+                        toggled => {
+                            root.fast-start-changed(self.checked);
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -11,12 +11,18 @@ use slint::{Timer, TimerMode};
 use windows_sys::Win32::Foundation::POINT;
 use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
+use crate::settings::{ContainerFormat, VideoCodec};
 use app::AppState;
 
 mod app;
 mod ffmpeg;
 mod output;
+mod settings;
 mod video;
+
+// --------------------------------------------------
+// Вспомогательные функции
+// --------------------------------------------------
 
 fn is_cursor_inside_drop_zone(window: &MainWindow) -> bool {
     let mut cursor_position = POINT { x: 0, y: 0 };
@@ -75,6 +81,50 @@ fn format_file_size(bytes: u64) -> String {
     format!("{:.2} МБ", megabytes)
 }
 
+// --------------------------------------------------
+// Синхронизация настроек с интерфейсом
+// --------------------------------------------------
+
+fn update_encoding_ui(window: &MainWindow, app_state: &Rc<RefCell<AppState>>) {
+    let state = app_state.borrow();
+    let settings = &state.encoding_settings;
+
+    // Multipass и Fast Start
+    window.set_multipass_available(settings.supports_multipass());
+    window.set_fast_start_available(settings.supports_fast_start());
+
+    window.set_multipass_enabled(settings.multipass);
+    window.set_fast_start_enabled(settings.fast_start);
+
+    // Контейнер
+    window.set_container_index(match &settings.container {
+        ContainerFormat::Mp4 => 0,
+        ContainerFormat::Mkv => 1,
+    });
+
+    // Видеокодек
+    window.set_codec_index(match &settings.codec {
+        VideoCodec::H264 => 0,
+        VideoCodec::H265 => 1,
+    });
+}
+
+fn update_output_path_ui(window: &MainWindow, app_state: &Rc<RefCell<AppState>>) {
+    let state = app_state.borrow();
+
+    let output_path = state
+        .output_settings
+        .as_ref()
+        .map(|settings| settings.full_path().display().to_string())
+        .unwrap_or_default();
+
+    window.set_output_full_path(output_path.into());
+}
+
+// --------------------------------------------------
+// Выбор и обработка видео
+// --------------------------------------------------
+
 fn select_video(path: &Path, app_state: &Rc<RefCell<AppState>>, window: &MainWindow) {
     if !is_supported_video(path) {
         return;
@@ -83,6 +133,9 @@ fn select_video(path: &Path, app_state: &Rc<RefCell<AppState>>, window: &MainWin
     let Some(video) = video::VideoFile::new(path.to_path_buf()) else {
         return;
     };
+
+    // Завершаем редактирование предыдущего имени до смены видео.
+    window.invoke_finish_output_name_editing();
 
     window.set_selected_file(video.file_name.clone().into());
 
@@ -107,25 +160,32 @@ fn select_video(path: &Path, app_state: &Rc<RefCell<AppState>>, window: &MainWin
                 // Сохраняем информацию в состоянии приложения
                 app_state.borrow_mut().set_video_info(info);
             }
+
             Err(error) => {
                 println!("Ошибка получения информации: {}", error);
             }
         }
     }
 
-    let output_settings = app_state.borrow().output_settings.clone();
+    let output_settings = { app_state.borrow().output_settings.clone() };
 
     if let Some(settings) = output_settings {
-        window.invoke_finish_output_name_editing();
-
         window.set_output_file_name(settings.file_name.into());
+
         window.set_output_directory(settings.directory.display().to_string().into());
     }
+
+    update_output_path_ui(window, app_state);
 }
+
+// --------------------------------------------------
+// Главная функция
+// --------------------------------------------------
 
 fn main() -> Result<(), slint::PlatformError> {
     let main_window = MainWindow::new()?;
 
+    // Получение версий FFmpeg и FFprobe
     match ffmpeg::get_tool_version("ffmpeg") {
         Ok(version) => println!("FFmpeg: {}", version),
         Err(error) => println!("FFmpeg: {}", error),
@@ -136,7 +196,102 @@ fn main() -> Result<(), slint::PlatformError> {
         Err(error) => println!("FFprobe: {}", error),
     }
 
+    // Создание состояния приложения
     let app_state = Rc::new(RefCell::new(AppState::default()));
+
+    // Начальная синхронизация настроек
+    update_encoding_ui(&main_window, &app_state);
+
+    // --------------------------------------------------
+    // Обработчики настроек кодирования
+    // --------------------------------------------------
+
+    // Multipass
+    let weak_window_for_multipass = main_window.as_weak();
+    let app_state_for_multipass = Rc::clone(&app_state);
+
+    main_window.on_multipass_changed(move |enabled| {
+        {
+            let mut state = app_state_for_multipass.borrow_mut();
+            let mut settings = state.encoding_settings.clone();
+
+            settings.multipass = enabled;
+
+            state.update_encoding_settings(settings);
+        }
+
+        if let Some(window) = weak_window_for_multipass.upgrade() {
+            update_encoding_ui(&window, &app_state_for_multipass);
+        }
+    });
+
+    // Fast Start
+    let weak_window_for_fast_start = main_window.as_weak();
+    let app_state_for_fast_start = Rc::clone(&app_state);
+
+    main_window.on_fast_start_changed(move |enabled| {
+        {
+            let mut state = app_state_for_fast_start.borrow_mut();
+            let mut settings = state.encoding_settings.clone();
+
+            settings.fast_start = enabled;
+
+            state.update_encoding_settings(settings);
+        }
+
+        if let Some(window) = weak_window_for_fast_start.upgrade() {
+            update_encoding_ui(&window, &app_state_for_fast_start);
+        }
+    });
+
+    // Контейнер
+    let weak_window_for_container = main_window.as_weak();
+    let app_state_for_container = Rc::clone(&app_state);
+
+    main_window.on_container_changed(move |value| {
+        let mut settings = { app_state_for_container.borrow().encoding_settings.clone() };
+
+        settings.container = match value.as_str() {
+            "MP4" => ContainerFormat::Mp4,
+            "MKV" => ContainerFormat::Mkv,
+            _ => return,
+        };
+
+        app_state_for_container
+            .borrow_mut()
+            .update_encoding_settings(settings);
+
+        if let Some(window) = weak_window_for_container.upgrade() {
+            update_encoding_ui(&window, &app_state_for_container);
+            update_output_path_ui(&window, &app_state_for_container);
+        }
+    });
+
+    // Видеокодек
+    let weak_window_for_codec = main_window.as_weak();
+    let app_state_for_codec = Rc::clone(&app_state);
+
+    main_window.on_codec_changed(move |value| {
+        let mut settings = { app_state_for_codec.borrow().encoding_settings.clone() };
+
+        settings.codec = match value.as_str() {
+            "H.264" => VideoCodec::H264,
+            "H.265" => VideoCodec::H265,
+            _ => return,
+        };
+
+        app_state_for_codec
+            .borrow_mut()
+            .update_encoding_settings(settings);
+
+        if let Some(window) = weak_window_for_codec.upgrade() {
+            update_encoding_ui(&window, &app_state_for_codec);
+        }
+    });
+
+    // --------------------------------------------------
+    // Drag & Drop
+    // --------------------------------------------------
 
     let weak_window = main_window.as_weak();
     let weak_window_for_timer = weak_window.clone();
@@ -189,10 +344,12 @@ fn main() -> Result<(), slint::PlatformError> {
         EventResult::Propagate
     });
 
-    // Обработка кнопки выбора файла
-    let weak_window = main_window.as_weak();
-    let app_state_for_dialog = Rc::clone(&app_state);
+    // --------------------------------------------------
+    // Обработчики выходного файла
+    // --------------------------------------------------
 
+    // Изменение имени выходного файла
+    let weak_window_for_output_name = main_window.as_weak();
     let app_state_for_output_name = Rc::clone(&app_state);
 
     main_window.on_output_file_name_changed(move |new_name| {
@@ -203,9 +360,14 @@ fn main() -> Result<(), slint::PlatformError> {
         {
             settings.file_name = new_name.to_string();
         }
+
+        if let Some(window) = weak_window_for_output_name.upgrade() {
+            update_output_path_ui(&window, &app_state_for_output_name);
+        }
     });
 
-    let weak_window_for_output = main_window.as_weak();
+    // Завершение редактирования имени
+    let weak_window_for_finish = main_window.as_weak();
     let app_state_for_finish = Rc::clone(&app_state);
 
     main_window.on_output_file_name_editing_finished(move || {
@@ -213,17 +375,23 @@ fn main() -> Result<(), slint::PlatformError> {
             .borrow_mut()
             .finish_output_name_editing();
 
-        if let (Some(name), Some(window)) = (updated_name, weak_window_for_output.upgrade()) {
-            window.set_output_file_name(name.into());
+        if let Some(window) = weak_window_for_finish.upgrade() {
+            if let Some(name) = updated_name {
+                window.set_output_file_name(name.into());
+            }
+
+            update_output_path_ui(&window, &app_state_for_finish);
         }
     });
 
-    // Обработка кнопки выбора папки сохранения
+    // --------------------------------------------------
+    // Выбор папки сохранения
+    // --------------------------------------------------
+
     let weak_window_for_directory = main_window.as_weak();
     let app_state_for_directory = Rc::clone(&app_state);
 
     main_window.on_choose_output_directory(move || {
-        // Получаем текущую папку, чтобы открыть диалог в ней
         let current_directory = { app_state_for_directory.borrow().output_directory.clone() };
 
         let mut dialog = rfd::FileDialog::new();
@@ -233,17 +401,24 @@ fn main() -> Result<(), slint::PlatformError> {
         }
 
         if let Some(directory) = dialog.pick_folder() {
-            // Сохраняем выбранную папку
             app_state_for_directory
                 .borrow_mut()
                 .set_output_directory(directory.clone());
 
-            // Обновляем путь в интерфейсе
             if let Some(window) = weak_window_for_directory.upgrade() {
                 window.set_output_directory(directory.display().to_string().into());
+
+                update_output_path_ui(&window, &app_state_for_directory);
             }
         }
     });
+
+    // --------------------------------------------------
+    // Выбор видео через диалог
+    // --------------------------------------------------
+
+    let weak_window_for_file = main_window.as_weak();
+    let app_state_for_dialog = Rc::clone(&app_state);
 
     main_window.on_choose_file(move || {
         let file = rfd::FileDialog::new()
@@ -251,11 +426,12 @@ fn main() -> Result<(), slint::PlatformError> {
             .pick_file();
 
         if let Some(path) = file {
-            if let Some(window) = weak_window.upgrade() {
+            if let Some(window) = weak_window_for_file.upgrade() {
                 select_video(&path, &app_state_for_dialog, &window);
             }
         }
     });
 
+    // Запуск приложения
     main_window.run()
 }

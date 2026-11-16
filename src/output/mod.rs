@@ -40,6 +40,10 @@ impl OutputSettings {
         }
     }
 
+    pub fn set_extension(&mut self, extension: String) {
+        self.extension = extension;
+    }
+
     pub fn full_path(&self) -> PathBuf {
         self.directory
             .join(format!("{}.{}", self.file_name, self.extension))
