@@ -102,6 +102,7 @@ export component MainWindow inherits Window {
     callback choose-file();
     callback output-file-name-changed(string);
     callback output-file-name-editing-finished();
+    callback choose-output-directory();
 
     public function finish-output-name-editing() {
         root.output-file-name-editing-finished();
@@ -289,11 +290,34 @@ export component MainWindow inherits Window {
             }
         }
 
-        Text {
-            text: "Папка сохранения: " +
-                (root.output-directory == "" ? "—" : root.output-directory);
-            color: #AAAAAA;
-            font-size: 13px;
+        HorizontalBox {
+            spacing: 8px;
+            alignment: start;
+
+            Button {
+                width: 130px;
+                text: "Выбрать папку";
+
+                clicked => {
+                    root.choose-output-directory();
+                }
+            }
+
+            Text {
+                width: 130px;
+                text: "Папка сохранения:";
+                color: #AAAAAA;
+                font-size: 13px;
+                vertical-alignment: center;
+            }
+
+            Text {
+                text: root.output-directory == "" ? "—" : root.output-directory;
+                color: #AAAAAA;
+                font-size: 13px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
         }
 
         // Настройки сжатия

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::output::OutputSettings;
 use crate::video::{VideoFile, VideoInfo};
 
@@ -5,6 +7,7 @@ use crate::video::{VideoFile, VideoInfo};
 pub struct AppState {
     pub selected_video: Option<VideoFile>,
     pub output_settings: Option<OutputSettings>,
+    pub output_directory: Option<PathBuf>,
     pub video_info: Option<VideoInfo>,
 }
 
@@ -12,8 +15,24 @@ impl AppState {
     pub fn select_video(&mut self, video: VideoFile) {
         self.video_info = None;
 
-        self.output_settings = Some(OutputSettings::from_video(&video));
+        let mut output_settings = OutputSettings::from_video(&video);
+
+        if let Some(directory) = &self.output_directory {
+            output_settings.directory = directory.clone();
+        }
+
+        self.output_directory = Some(output_settings.directory.clone());
+        self.output_settings = Some(output_settings);
+
         self.selected_video = Some(video);
+    }
+
+    pub fn set_output_directory(&mut self, directory: PathBuf) {
+        self.output_directory = Some(directory.clone());
+
+        if let Some(settings) = self.output_settings.as_mut() {
+            settings.directory = directory;
+        }
     }
 
     pub fn finish_output_name_editing(&mut self) -> Option<String> {

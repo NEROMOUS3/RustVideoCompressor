@@ -218,6 +218,33 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
+    // Обработка кнопки выбора папки сохранения
+    let weak_window_for_directory = main_window.as_weak();
+    let app_state_for_directory = Rc::clone(&app_state);
+
+    main_window.on_choose_output_directory(move || {
+        // Получаем текущую папку, чтобы открыть диалог в ней
+        let current_directory = { app_state_for_directory.borrow().output_directory.clone() };
+
+        let mut dialog = rfd::FileDialog::new();
+
+        if let Some(directory) = current_directory {
+            dialog = dialog.set_directory(directory);
+        }
+
+        if let Some(directory) = dialog.pick_folder() {
+            // Сохраняем выбранную папку
+            app_state_for_directory
+                .borrow_mut()
+                .set_output_directory(directory.clone());
+
+            // Обновляем путь в интерфейсе
+            if let Some(window) = weak_window_for_directory.upgrade() {
+                window.set_output_directory(directory.display().to_string().into());
+            }
+        }
+    });
+
     main_window.on_choose_file(move || {
         let file = rfd::FileDialog::new()
             .add_filter("Видео", &["mp4", "mkv", "mov", "avi", "webm", "m4v"])
