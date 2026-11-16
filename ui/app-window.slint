@@ -1,5 +1,5 @@
 
-import { VerticalBox } from "std-widgets.slint";
+import { VerticalBox, Button } from "std-widgets.slint";
 
 component CompressionSlider inherits Rectangle {
     in-out property <float> value: 28;
@@ -19,13 +19,13 @@ component CompressionSlider inherits Rectangle {
 
         // Заполненная часть
        Rectangle {
-    x: 0px;
-    y: 0px;
-    width: parent.width * root.value / 100;
-    height: parent.height;
-    border-radius: 4px;
-    background: root.active-color;
-}
+            x: 0px;
+            y: 0px;
+            width: parent.width * root.value / 100;
+            height: parent.height;
+            border-radius: 4px;
+            background: root.active-color;
+        }
     }
 
     // Круглый ползунок
@@ -50,25 +50,30 @@ component CompressionSlider inherits Rectangle {
             if (event.button == PointerEventButton.left
                 && event.kind == PointerEventKind.down) {
                 root.value = max(0, min(100,
-                    (self.mouse-x - 9px) / (self.width - 18px) * 100
-                ));
+                    (self.mouse-x - 9px) / (self.width - 18px) * 100));
             }
         }
 
         moved => {
             if (self.pressed) {
                 root.value = max(0, min(100,
-                    (self.mouse-x - 9px) / (self.width - 18px) * 100
-                ));
+                    (self.mouse-x - 9px) / (self.width - 18px) * 100));
             }
         }
     }
 }
 
+
 export component MainWindow inherits Window {
     title: "Rust Video Compressor";
     width: 850px;
     height: 700px;
+
+    in-out property <string> selected-file: "";
+    callback choose-file();
+
+    in-out property <bool> is-dragging-file: false;
+    in-out property <bool> drop-zone-hovered: false;
 
     in-out property <float> compression-level: 28;
 
@@ -90,6 +95,37 @@ export component MainWindow inherits Window {
     VerticalBox {
         padding: 24px;
         spacing: 16px;
+
+        Rectangle {
+            height: 130px;
+            border-width: 2px;
+            border-radius: 10px;
+            border-color: root.drop-zone-hovered ? #36A66B : #555555;
+            background: root.drop-zone-hovered ? #263B32 : #252525;
+
+            Text {
+                text: "Перетащите видео сюда";
+                color: #FFFFFF;
+                font-size: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        Button {
+            text: "Выбрать видео";
+            clicked => {
+                root.choose-file();
+            }
+        }
+
+        Text {
+            text: root.selected-file == ""
+                ? "Видео не выбрано"
+                : root.selected-file;
+            color: #AAAAAA;
+            font-size: 13px;
+        }
 
         Text {
             text: "Степень сжатия";
