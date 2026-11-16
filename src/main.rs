@@ -14,6 +14,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
 use app::AppState;
 
 mod app;
+mod ffmpeg;
 mod output;
 mod video;
 
@@ -43,7 +44,7 @@ fn is_cursor_inside_drop_zone(window: &MainWindow) -> bool {
             cursor_x >= 24.0
                 && cursor_x <= window_width - 24.0
                 && cursor_y >= 24.0
-                && cursor_y <= 154.0
+                && cursor_y <= 304.0
         })
         .unwrap_or(false)
 }
@@ -56,6 +57,22 @@ fn is_supported_video(path: &Path) -> bool {
             .as_deref(),
         Some("mp4" | "mkv" | "mov" | "avi" | "webm" | "m4v")
     )
+}
+
+fn format_duration(seconds: f64) -> String {
+    let total_seconds = seconds.round() as u64;
+
+    let hours = total_seconds / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+    let seconds = total_seconds % 60;
+
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+}
+
+fn format_file_size(bytes: u64) -> String {
+    let megabytes = bytes as f64 / (1024.0 * 1024.0);
+
+    format!("{:.2} МБ", megabytes)
 }
 
 fn select_video(path: &Path, app_state: &Rc<RefCell<AppState>>, window: &MainWindow) {
@@ -71,6 +88,31 @@ fn select_video(path: &Path, app_state: &Rc<RefCell<AppState>>, window: &MainWin
 
     app_state.borrow_mut().select_video(video);
 
+    let selected_video = { app_state.borrow().selected_video.clone() };
+
+    if let Some(video) = selected_video {
+        match ffmpeg::get_video_info(&video.path) {
+            Ok(info) => {
+                // Передаём информацию в интерфейс
+                window.set_video_resolution(format!("{} × {}", info.width, info.height).into());
+
+                window.set_video_duration(format_duration(info.duration).into());
+
+                window.set_video_fps(format!("{:.2}", info.fps).into());
+
+                window.set_video_codec(info.codec.clone().into());
+
+                window.set_video_size(format_file_size(info.size).into());
+
+                // Сохраняем информацию в состоянии приложения
+                app_state.borrow_mut().set_video_info(info);
+            }
+            Err(error) => {
+                println!("Ошибка получения информации: {}", error);
+            }
+        }
+    }
+
     let output_settings = app_state.borrow().output_settings.clone();
 
     if let Some(settings) = output_settings {
@@ -83,6 +125,16 @@ fn select_video(path: &Path, app_state: &Rc<RefCell<AppState>>, window: &MainWin
 
 fn main() -> Result<(), slint::PlatformError> {
     let main_window = MainWindow::new()?;
+
+    match ffmpeg::get_tool_version("ffmpeg") {
+        Ok(version) => println!("FFmpeg: {}", version),
+        Err(error) => println!("FFmpeg: {}", error),
+    }
+
+    match ffmpeg::get_tool_version("ffprobe") {
+        Ok(version) => println!("FFprobe: {}", version),
+        Err(error) => println!("FFprobe: {}", error),
+    }
 
     let app_state = Rc::new(RefCell::new(AppState::default()));
 

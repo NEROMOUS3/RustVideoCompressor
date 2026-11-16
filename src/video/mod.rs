@@ -1,3 +1,4 @@
+use serde::Deserialize;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
@@ -19,4 +20,14 @@ impl VideoFile {
             extension,
         })
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct VideoInfo {
+    pub width: u32,
+    pub height: u32,
+    pub duration: f64,
+    pub codec: String,
+    pub fps: f64,
+    pub size: u64,
 }

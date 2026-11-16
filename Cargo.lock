@@ -3810,6 +3810,8 @@ name = "rust_video_compressor"
 version = "0.1.0"
 dependencies = [
  "rfd",
+ "serde",
+ "serde_json",
  "slint",
  "slint-build",
  "windows-sys 0.61.2",

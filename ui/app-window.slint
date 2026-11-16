@@ -1,6 +1,10 @@
 
-import { VerticalBox, Button } from "std-widgets.slint";
-import { VerticalBox, Button, LineEdit } from "std-widgets.slint";
+import {
+    VerticalBox,
+    HorizontalBox,
+    Button,
+    LineEdit,
+} from "std-widgets.slint";
 
 component CompressionSlider inherits Rectangle {
     in-out property <float> value: 28;
@@ -9,7 +13,6 @@ component CompressionSlider inherits Rectangle {
     min-height: 32px;
     min-width: 100px;
 
-    // Фоновая дорожка
     track := Rectangle {
         x: 9px;
         y: 12px;
@@ -18,8 +21,7 @@ component CompressionSlider inherits Rectangle {
         border-radius: 4px;
         background: #E0E3E8;
 
-        // Заполненная часть
-       Rectangle {
+        Rectangle {
             x: 0px;
             y: 0px;
             width: parent.width * root.value / 100;
@@ -29,7 +31,6 @@ component CompressionSlider inherits Rectangle {
         }
     }
 
-    // Круглый ползунок
     handle := Rectangle {
         width: 20px;
         height: 20px;
@@ -41,7 +42,6 @@ component CompressionSlider inherits Rectangle {
         border-color: #FFFFFF;
     }
 
-    // Обработка мыши
     touch := TouchArea {
         width: parent.width;
         height: parent.height;
@@ -63,7 +63,6 @@ component CompressionSlider inherits Rectangle {
         }
     }
 }
-
 
 export component MainWindow inherits Window {
     title: "Rust Video Compressor";
@@ -94,6 +93,12 @@ export component MainWindow inherits Window {
         root.compression-level <= 56 ? "Заметная потеря качества" :
         "Сильное сжатие";
 
+    in-out property <string> video-resolution: "";
+    in-out property <string> video-duration: "";
+    in-out property <string> video-fps: "";
+    in-out property <string> video-codec: "";
+    in-out property <string> video-size: "";
+
     callback choose-file();
     callback output-file-name-changed(string);
     callback output-file-name-editing-finished();
@@ -114,24 +119,144 @@ export component MainWindow inherits Window {
 
     VerticalBox {
         padding: 24px;
-        spacing: 16px;
+        spacing: 12px;
 
+        // Единая зона Drag & Drop и информации о видео
         Rectangle {
-            height: 130px;
+            width: 100%;
+            height: 280px;
             border-width: 2px;
             border-radius: 10px;
             border-color: root.drop-zone-hovered ? #36A66B : #555555;
             background: root.drop-zone-hovered ? #263B32 : #252525;
 
-            Text {
+            // Показываем подсказку, пока видео не выбрано
+            if root.selected-file == "": Text {
                 text: "Перетащите видео сюда";
                 color: #FFFFFF;
                 font-size: 16px;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
+
+            // Показываем информацию после выбора видео
+            if root.selected-file != "": VerticalBox {
+                padding: 14px;
+                spacing: 8px;
+
+                Text {
+                    text: "Информация о видео";
+                    font-size: 16px;
+                    font-weight: 700;
+                    color: #FFFFFF;
+                    horizontal-alignment: left;
+                }
+
+                HorizontalBox {
+                    spacing: 0px;
+
+                    Text {
+                        width: 130px;
+                        text: "Имя файла:";
+                        color: #AAAAAA;
+                        horizontal-alignment: left;
+                    }
+
+                    Text {
+                        text: root.selected-file;
+                        color: #FFFFFF;
+                        horizontal-alignment: left;
+                    }
+                }
+
+                HorizontalBox {
+                    spacing: 0px;
+
+                    Text {
+                        width: 130px;
+                        text: "Разрешение:";
+                        color: #AAAAAA;
+                        horizontal-alignment: left;
+                    }
+
+                    Text {
+                        text: root.video-resolution == "" ? "—" : root.video-resolution;
+                        color: #FFFFFF;
+                        horizontal-alignment: left;
+                    }
+                }
+
+                HorizontalBox {
+                    spacing: 0px;
+
+                    Text {
+                        width: 130px;
+                        text: "Длительность:";
+                        color: #AAAAAA;
+                        horizontal-alignment: left;
+                    }
+
+                    Text {
+                        text: root.video-duration == "" ? "—" : root.video-duration;
+                        color: #FFFFFF;
+                        horizontal-alignment: left;
+                    }
+                }
+
+                HorizontalBox {
+                    spacing: 0px;
+
+                    Text {
+                        width: 130px;
+                        text: "FPS:";
+                        color: #AAAAAA;
+                        horizontal-alignment: left;
+                    }
+
+                    Text {
+                        text: root.video-fps == "" ? "—" : root.video-fps;
+                        color: #FFFFFF;
+                        horizontal-alignment: left;
+                    }
+                }
+
+                HorizontalBox {
+                    spacing: 0px;
+
+                    Text {
+                        width: 130px;
+                        text: "Кодек:";
+                        color: #AAAAAA;
+                        horizontal-alignment: left;
+                    }
+
+                    Text {
+                        text: root.video-codec == "" ? "—" : root.video-codec;
+                        color: #FFFFFF;
+                        horizontal-alignment: left;
+                    }
+                }
+
+                HorizontalBox {
+                    spacing: 0px;
+
+                    Text {
+                        width: 130px;
+                        text: "Размер файла:";
+                        color: #AAAAAA;
+                        horizontal-alignment: left;
+                    }
+
+                    Text {
+                        text: root.video-size == "" ? "—" : root.video-size;
+                        color: #FFFFFF;
+                        horizontal-alignment: left;
+                    }
+                }
+            }
         }
 
+        // Кнопка выбора видео
         Button {
             text: "Выбрать видео";
             clicked => {
@@ -139,18 +264,12 @@ export component MainWindow inherits Window {
             }
         }
 
+        // Настройки выходного файла
         Text {
-            text: root.selected-file == ""
-                ? "Видео не выбрано"
-                : root.selected-file;
-            color: #AAAAAA;
-            font-size: 13px;
-        }
-
-        Text {
-            text: "Имя выходного файла";
+            text: "Выходной файл";
             color: #FFFFFF;
-            font-size: 15px;
+            font-size: 18px;
+            font-weight: 600;
         }
 
         output-name-input := LineEdit {
@@ -177,6 +296,7 @@ export component MainWindow inherits Window {
             font-size: 13px;
         }
 
+        // Настройки сжатия
         Text {
             text: "Степень сжатия";
             font-size: 20px;

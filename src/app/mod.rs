@@ -1,14 +1,17 @@
 use crate::output::OutputSettings;
-use crate::video::VideoFile;
+use crate::video::{VideoFile, VideoInfo};
 
 #[derive(Debug, Default)]
 pub struct AppState {
     pub selected_video: Option<VideoFile>,
     pub output_settings: Option<OutputSettings>,
+    pub video_info: Option<VideoInfo>,
 }
 
 impl AppState {
     pub fn select_video(&mut self, video: VideoFile) {
+        self.video_info = None;
+
         self.output_settings = Some(OutputSettings::from_video(&video));
         self.selected_video = Some(video);
     }
@@ -24,5 +27,9 @@ impl AppState {
         }
 
         Some(output_settings.file_name.clone())
+    }
+
+    pub fn set_video_info(&mut self, info: VideoInfo) {
+        self.video_info = Some(info);
     }
 }
