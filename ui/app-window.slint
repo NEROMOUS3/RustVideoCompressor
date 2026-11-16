@@ -1,15 +1,65 @@
 
-export component MainWindow inherits Window {
-    title: "Video Compressor";
-    width: 800px;
-    height: 600px;
-        
+import { VerticalBox, Slider } from "std-widgets.slint";
 
-    Text {
-        text: "Hello, Slint!";
-        font-size: 24px;
-        color: #333333;
-        horizontal-alignment: center;
-        vertical-alignment: center;
+export component MainWindow inherits Window {
+    title: "Rust Video Compressor";
+    width: 850px;
+    height: 700px;
+
+    in-out property <float> compression-level: 28;
+
+    // Переводим шкалу 0–100 в CRF 18–36.
+    out property <int> crf-value:
+        18 + round(root.compression-level * 0.18);
+
+    // Цветовая зона зависит от выбранного уровня.
+    out property <color> quality-color:
+        root.compression-level <= 0 ? #3986DB :
+        root.compression-level <= 28 ? #36A66B :
+        root.compression-level <= 56 ? #D6A72E :
+        #DC5555;
+
+    out property <string> quality-description:
+        root.compression-level <= 0 ? "Лучшее качество" :
+        root.compression-level <= 28 ? "Хорошее качество" :
+        root.compression-level <= 56 ? "Заметная потеря качества" :
+        "Сильное сжатие";
+
+    VerticalBox {
+        padding: 24px;
+        spacing: 16px;
+
+        Text {
+            text: "Степень сжатия";
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        Text {
+            text: "Уровень: \{round(root.compression-level)} / 100";
+            font-size: 24px;
+            color: root.quality-color;
+            font-weight: 700;
+        }
+
+        Slider {
+            minimum: 0;
+            maximum: 100;
+            step: 1;
+            value <=> root.compression-level;
+        }
+
+        Text {
+            text: root.quality-description;
+            color: root.quality-color;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        Text {
+            text: "Параметр кодирования H.264: CRF \{root.crf-value}";
+            color: #888888;
+            font-size: 13px;
+        }
     }
 }
