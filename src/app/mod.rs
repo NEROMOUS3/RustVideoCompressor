@@ -57,13 +57,19 @@ impl AppState {
         self.video_info = Some(info);
     }
 
-    pub fn update_encoding_settings(&mut self, settings: EncodingSettings) {
-        let mut settings = settings;
+    pub fn update_encoding_settings(&mut self, mut settings: EncodingSettings) {
         settings.normalize();
+
+        // Проверяем, подходит ли текущий пресет новому кодировщику.
+        let available_presets = settings.available_presets();
+
+        if !available_presets.contains(&settings.preset.as_str()) {
+            settings.preset = settings.default_preset().to_string();
+        }
 
         self.encoding_settings = settings;
 
-        // Обновляем расширение выходного файла
+        // Обновляем расширение выходного файла.
         let extension = self.container_extension();
 
         if let Some(output_settings) = self.output_settings.as_mut() {

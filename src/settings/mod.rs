@@ -34,6 +34,7 @@ pub struct EncodingSettings {
     pub multipass: bool,
     pub fast_start: bool,
     pub crf: u8,
+    pub preset: String,
 }
 
 impl Default for EncodingSettings {
@@ -46,6 +47,42 @@ impl Default for EncodingSettings {
             multipass: false,
             fast_start: true,
             crf: 23,
+            preset: "medium".to_string(),
+        }
+    }
+}
+
+impl EncodingSettings {
+    pub fn available_presets(&self) -> Vec<&'static str> {
+        match self.encoder {
+            EncoderBackend::Software => vec![
+                "ultrafast",
+                "superfast",
+                "veryfast",
+                "faster",
+                "fast",
+                "medium",
+                "slow",
+                "slower",
+                "veryslow",
+            ],
+
+            EncoderBackend::NvidiaNvenc => vec!["P1", "P2", "P3", "P4", "P5", "P6", "P7"],
+
+            EncoderBackend::AmdAmf => vec!["speed", "balanced", "quality"],
+
+            EncoderBackend::IntelQsv => vec![
+                "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow",
+            ],
+        }
+    }
+
+    pub fn default_preset(&self) -> &'static str {
+        match self.encoder {
+            EncoderBackend::Software => "medium",
+            EncoderBackend::NvidiaNvenc => "P5",
+            EncoderBackend::AmdAmf => "balanced",
+            EncoderBackend::IntelQsv => "medium",
         }
     }
 }

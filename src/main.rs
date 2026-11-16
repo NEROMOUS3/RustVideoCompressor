@@ -11,7 +11,7 @@ use slint::{Timer, TimerMode};
 use windows_sys::Win32::Foundation::POINT;
 use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
-use crate::settings::{ContainerFormat, VideoCodec};
+use crate::settings::{ContainerFormat, EncoderBackend, VideoCodec};
 use app::AppState;
 
 mod app;
@@ -107,6 +107,31 @@ fn update_encoding_ui(window: &MainWindow, app_state: &Rc<RefCell<AppState>>) {
         VideoCodec::H264 => 0,
         VideoCodec::H265 => 1,
     });
+
+    window.set_encoder_index(match &settings.encoder {
+        EncoderBackend::Software => 0,
+        EncoderBackend::NvidiaNvenc => 1,
+        EncoderBackend::AmdAmf => 2,
+        EncoderBackend::IntelQsv => 3,
+    });
+
+    // Доступные пресеты текущего кодировщика.
+    let presets = settings.available_presets();
+
+    let preset_index = presets
+        .iter()
+        .position(|preset| *preset == settings.preset)
+        .unwrap_or(0);
+
+    let preset_model = slint::VecModel::from(
+        presets
+            .iter()
+            .map(|preset| slint::SharedString::from(*preset))
+            .collect::<Vec<_>>(),
+    );
+
+    window.set_encoder_presets(slint::ModelRc::new(preset_model));
+    window.set_preset_index(preset_index as i32);
 }
 
 fn update_output_path_ui(window: &MainWindow, app_state: &Rc<RefCell<AppState>>) {
@@ -286,6 +311,54 @@ fn main() -> Result<(), slint::PlatformError> {
 
         if let Some(window) = weak_window_for_codec.upgrade() {
             update_encoding_ui(&window, &app_state_for_codec);
+        }
+    });
+
+    // --------------------------------------------------
+    // Выбор кодировщика
+    // --------------------------------------------------
+
+    let weak_window_for_encoder = main_window.as_weak();
+    let app_state_for_encoder = Rc::clone(&app_state);
+
+    main_window.on_encoder_changed(move |value| {
+        let mut settings = { app_state_for_encoder.borrow().encoding_settings.clone() };
+
+        settings.encoder = match value.as_str() {
+            "Software (CPU)" => EncoderBackend::Software,
+            "NVIDIA NVENC" => EncoderBackend::NvidiaNvenc,
+            "AMD AMF" => EncoderBackend::AmdAmf,
+            "Intel Quick Sync (QSV)" => EncoderBackend::IntelQsv,
+            _ => return,
+        };
+
+        app_state_for_encoder
+            .borrow_mut()
+            .update_encoding_settings(settings);
+
+        if let Some(window) = weak_window_for_encoder.upgrade() {
+            update_encoding_ui(&window, &app_state_for_encoder);
+        }
+    });
+
+    // --------------------------------------------------
+    // Выбор пресета
+    // --------------------------------------------------
+
+    let weak_window_for_preset = main_window.as_weak();
+    let app_state_for_preset = Rc::clone(&app_state);
+
+    main_window.on_preset_changed(move |value| {
+        let mut settings = { app_state_for_preset.borrow().encoding_settings.clone() };
+
+        settings.preset = value.to_string();
+
+        app_state_for_preset
+            .borrow_mut()
+            .update_encoding_settings(settings);
+
+        if let Some(window) = weak_window_for_preset.upgrade() {
+            update_encoding_ui(&window, &app_state_for_preset);
         }
     });
 
