@@ -110,9 +110,14 @@ export component MainWindow inherits Window {
 
     in-out property <int> container-index: 0;
     in-out property <int> codec-index: 0;
+
     in-out property <int> encoder-index: 0;
     in-out property <[string]> encoder-presets: ["medium"];
     in-out property <int> preset-index: 0;
+
+    in-out property <[string]> resolution-options: ["Оригинал", "2160p (4K)", "1440p", "1080p", "720p", "480p"];
+
+    in-out property <int> resolution-index: 0;
 
     callback choose-file();
     callback output-file-name-changed(string);
@@ -124,6 +129,7 @@ export component MainWindow inherits Window {
     callback codec-changed(string);
     callback encoder-changed(string);
     callback preset-changed(string);
+    callback resolution-changed(string);
 
     public function finish-output-name-editing() {
         root.output-file-name-editing-finished();
@@ -455,29 +461,45 @@ export component MainWindow inherits Window {
                         }
 
                         VerticalBox {
-                            horizontal-stretch: 1;
+                            horizontal-stretch: 0;
                             spacing: 4px;
+                            alignment: start;
 
-                            Text {
-                                text: "Пресет";
-                                color: #AAAAAA;
-                                font-size: 12px;
-                            }
+                            VerticalBox {
+                                horizontal-stretch: 1;
+                                spacing: 4px;
 
-                            ComboBox {
-                                model: root.encoder-presets;
-                                current-index: root.preset-index;
+                                Text {
+                                    text: "Разрешение";
+                                    color: #AAAAAA;
+                                    font-size: 12px;
+                                }
 
-                                selected(value) => {
-                                    root.preset-changed(value);
+                                ComboBox {
+                                    width: 140px;
+                                    max-height: 32px;
+
+                                    model: root.resolution-options;
+                                    current-index: root.resolution-index;
+
+                                    selected(value) => {
+                                        root.resolution-changed(value);
+                                    }
                                 }
                             }
                         }
                     }
 
                     VerticalBox {
-                        horizontal-stretch: 1;
+
+                        horizontal-stretch: 0;
                         spacing: 4px;
+                        alignment: start;
+
+                        Rectangle {
+                            height: 2px;
+                            background: transparent;
+                        }
 
                         Text {
                             text: "Разрешение";
@@ -485,10 +507,16 @@ export component MainWindow inherits Window {
                             font-size: 12px;
                         }
 
-                        Text {
-                            text: "Оригинал";
-                            color: #CCCCCC;
-                            vertical-alignment: center;
+                        ComboBox {
+                            width: 140px;
+                            max-height: 32px;
+
+                            model: root.resolution-options;
+                            current-index: root.resolution-index;
+
+                            selected(value) => {
+                                root.resolution-changed(value);
+                            }
                         }
                     }
                 }

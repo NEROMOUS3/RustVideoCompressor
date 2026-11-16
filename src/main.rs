@@ -11,7 +11,7 @@ use slint::{Timer, TimerMode};
 use windows_sys::Win32::Foundation::POINT;
 use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
-use crate::settings::{ContainerFormat, EncoderBackend, VideoCodec};
+use crate::settings::{ContainerFormat, EncoderBackend, Resolution, VideoCodec};
 use app::AppState;
 
 mod app;
@@ -122,6 +122,8 @@ fn update_encoding_ui(window: &MainWindow, app_state: &Rc<RefCell<AppState>>) {
         .iter()
         .position(|preset| *preset == settings.preset)
         .unwrap_or(0);
+
+    window.set_resolution_index(settings.resolution.to_index());
 
     let preset_model = slint::VecModel::from(
         presets
@@ -360,6 +362,26 @@ fn main() -> Result<(), slint::PlatformError> {
         if let Some(window) = weak_window_for_preset.upgrade() {
             update_encoding_ui(&window, &app_state_for_preset);
         }
+    });
+
+    let app_state_for_resolution = Rc::clone(&app_state);
+
+    main_window.on_resolution_changed(move |value| {
+        let mut state = app_state_for_resolution.borrow_mut();
+
+        let index = match value.as_str() {
+            "2160p (4K)" => 1,
+            "1440p" => 2,
+            "1080p" => 3,
+            "720p" => 4,
+            "480p" => 5,
+            _ => 0,
+        };
+
+        let mut settings = state.encoding_settings.clone();
+        settings.resolution = Resolution::from_index(index);
+
+        state.update_encoding_settings(settings);
     });
 
     // --------------------------------------------------

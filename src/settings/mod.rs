@@ -87,6 +87,39 @@ impl EncodingSettings {
     }
 }
 
+impl Resolution {
+    pub fn available_presets() -> Vec<&'static str> {
+        vec!["Оригинал", "2160p (4K)", "1440p", "1080p", "720p", "480p"]
+    }
+
+    pub fn default_index() -> i32 {
+        0
+    }
+
+    pub fn from_index(index: i32) -> Self {
+        match index {
+            1 => Resolution::Preset(2160),
+            2 => Resolution::Preset(1440),
+            3 => Resolution::Preset(1080),
+            4 => Resolution::Preset(720),
+            5 => Resolution::Preset(480),
+            _ => Resolution::Original,
+        }
+    }
+
+    pub fn to_index(&self) -> i32 {
+        match self {
+            Resolution::Original => 0,
+            Resolution::Preset(2160) => 1,
+            Resolution::Preset(1440) => 2,
+            Resolution::Preset(1080) => 3,
+            Resolution::Preset(720) => 4,
+            Resolution::Preset(480) => 5,
+            Resolution::Preset(_) | Resolution::Custom { .. } => 0,
+        }
+    }
+}
+
 impl EncodingSettings {
     pub fn supports_multipass(&self) -> bool {
         match self.encoder {
