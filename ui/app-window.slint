@@ -1,5 +1,6 @@
 
 import { VerticalBox, Button } from "std-widgets.slint";
+import { VerticalBox, Button, LineEdit } from "std-widgets.slint";
 
 component CompressionSlider inherits Rectangle {
     in-out property <float> value: 28;
@@ -70,7 +71,8 @@ export component MainWindow inherits Window {
     height: 700px;
 
     in-out property <string> selected-file: "";
-    callback choose-file();
+    in-out property <string> output-file-name: "";
+    in-out property <string> output-directory: "";
 
     in-out property <bool> is-dragging-file: false;
     in-out property <bool> drop-zone-hovered: false;
@@ -91,6 +93,24 @@ export component MainWindow inherits Window {
         root.compression-level <= 28 ? "Хорошее качество" :
         root.compression-level <= 56 ? "Заметная потеря качества" :
         "Сильное сжатие";
+
+    callback choose-file();
+    callback output-file-name-changed(string);
+    callback output-file-name-editing-finished();
+
+    public function finish-output-name-editing() {
+        root.output-file-name-editing-finished();
+        output-name-input.clear-focus();
+    }
+
+    TouchArea {
+        width: 100%;
+        height: 100%;
+
+        clicked => {
+            output-name-input.clear-focus();
+        }
+    }
 
     VerticalBox {
         padding: 24px;
@@ -123,6 +143,36 @@ export component MainWindow inherits Window {
             text: root.selected-file == ""
                 ? "Видео не выбрано"
                 : root.selected-file;
+            color: #AAAAAA;
+            font-size: 13px;
+        }
+
+        Text {
+            text: "Имя выходного файла";
+            color: #FFFFFF;
+            font-size: 15px;
+        }
+
+        output-name-input := LineEdit {
+            text <=> root.output-file-name;
+            placeholder-text: "Введите имя файла";
+
+            edited(text) => {
+                root.output-file-name = text;
+                root.output-file-name-changed(text);
+            }
+
+            accepted(text) => {
+                root.output-file-name = text;
+                root.output-file-name-changed(text);
+                root.output-file-name-editing-finished();
+                self.clear-focus();
+            }
+        }
+
+        Text {
+            text: "Папка сохранения: " +
+                (root.output-directory == "" ? "—" : root.output-directory);
             color: #AAAAAA;
             font-size: 13px;
         }
