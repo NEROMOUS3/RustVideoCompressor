@@ -1,5 +1,69 @@
 
-import { VerticalBox, Slider } from "std-widgets.slint";
+import { VerticalBox } from "std-widgets.slint";
+
+component CompressionSlider inherits Rectangle {
+    in-out property <float> value: 28;
+    in property <color> active-color: #36A66B;
+
+    min-height: 32px;
+    min-width: 100px;
+
+    // Фоновая дорожка
+    track := Rectangle {
+        x: 9px;
+        y: 12px;
+        width: parent.width - 18px;
+        height: 8px;
+        border-radius: 4px;
+        background: #E0E3E8;
+
+        // Заполненная часть
+       Rectangle {
+    x: 0px;
+    y: 0px;
+    width: parent.width * root.value / 100;
+    height: parent.height;
+    border-radius: 4px;
+    background: root.active-color;
+}
+    }
+
+    // Круглый ползунок
+    handle := Rectangle {
+        width: 20px;
+        height: 20px;
+        y: 6px;
+        x: track.x + track.width * root.value / 100 - self.width / 2;
+        border-radius: 10px;
+        background: root.active-color;
+        border-width: 2px;
+        border-color: #FFFFFF;
+    }
+
+    // Обработка мыши
+    touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        mouse-cursor: MouseCursor.grab;
+
+        pointer-event(event) => {
+            if (event.button == PointerEventButton.left
+                && event.kind == PointerEventKind.down) {
+                root.value = max(0, min(100,
+                    (self.mouse-x - 9px) / (self.width - 18px) * 100
+                ));
+            }
+        }
+
+        moved => {
+            if (self.pressed) {
+                root.value = max(0, min(100,
+                    (self.mouse-x - 9px) / (self.width - 18px) * 100
+                ));
+            }
+        }
+    }
+}
 
 export component MainWindow inherits Window {
     title: "Rust Video Compressor";
@@ -8,11 +72,9 @@ export component MainWindow inherits Window {
 
     in-out property <float> compression-level: 28;
 
-    // Переводим шкалу 0–100 в CRF 18–36.
     out property <int> crf-value:
         18 + round(root.compression-level * 0.18);
 
-    // Цветовая зона зависит от выбранного уровня.
     out property <color> quality-color:
         root.compression-level <= 0 ? #3986DB :
         root.compression-level <= 28 ? #36A66B :
@@ -42,11 +104,9 @@ export component MainWindow inherits Window {
             font-weight: 700;
         }
 
-        Slider {
-            minimum: 0;
-            maximum: 100;
-            step: 1;
+        CompressionSlider {
             value <=> root.compression-level;
+            active-color: root.quality-color;
         }
 
         Text {
