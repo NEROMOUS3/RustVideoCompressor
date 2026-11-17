@@ -118,6 +118,46 @@ impl Resolution {
             Resolution::Preset(_) | Resolution::Custom { .. } => 0,
         }
     }
+
+    pub fn calculate_dimensions(
+        &self,
+        source_width: u32,
+        source_height: u32,
+    ) -> Option<(u32, u32)> {
+        if source_width == 0 || source_height == 0 {
+            return None;
+        }
+
+        match self {
+            Resolution::Original => Some((source_width, source_height)),
+
+            Resolution::Preset(target_height) => {
+                // Не увеличиваем видео, если исходная высота меньше выбранной.
+                let height = (*target_height).min(source_height);
+
+                if height == source_height {
+                    return Some((source_width, source_height));
+                }
+
+                // Сохраняем пропорции исходного видео.
+                let calculated_width = (source_width as u64 * height as u64) / source_height as u64;
+
+                // Округляем ширину до ближайшего чётного числа.
+                let width = ((calculated_width as u32 + 1) / 2) * 2;
+
+                if width == 0 {
+                    return None;
+                }
+
+                Some((width, height))
+            }
+
+            Resolution::Custom { .. } => {
+                // Пользовательский размер реализуем позднее.
+                None
+            }
+        }
+    }
 }
 
 impl EncodingSettings {
@@ -142,5 +182,68 @@ impl EncodingSettings {
         if !self.supports_fast_start() {
             self.fast_start = false;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Resolution;
+
+    #[test]
+    fn original_resolution_keeps_source_dimensions() {
+        let resolution = Resolution::Original;
+
+        assert_eq!(
+            resolution.calculate_dimensions(1920, 1080),
+            Some((1920, 1080))
+        );
+    }
+
+    #[test]
+    fn preset_resolution_preserves_aspect_ratio() {
+        let resolution = Resolution::Preset(720);
+
+        assert_eq!(
+            resolution.calculate_dimensions(1920, 1080),
+            Some((1280, 720))
+        );
+    }
+
+    #[test]
+    fn preset_resolution_rounds_width_to_even_number() {
+        let resolution = Resolution::Preset(480);
+
+        assert_eq!(
+            resolution.calculate_dimensions(1920, 1080),
+            Some((854, 480))
+        );
+    }
+
+    #[test]
+    fn preset_does_not_upscale_video() {
+        let resolution = Resolution::Preset(1440);
+
+        assert_eq!(
+            resolution.calculate_dimensions(1920, 1080),
+            Some((1920, 1080))
+        );
+    }
+
+    #[test]
+    fn zero_dimensions_return_none() {
+        let resolution = Resolution::Preset(720);
+
+        assert_eq!(resolution.calculate_dimensions(0, 1080), None);
+        assert_eq!(resolution.calculate_dimensions(1920, 0), None);
+    }
+
+    #[test]
+    fn custom_resolution_is_not_implemented_yet() {
+        let resolution = Resolution::Custom {
+            width: 1280,
+            height: 720,
+        };
+
+        assert_eq!(resolution.calculate_dimensions(1920, 1080), None);
     }
 }

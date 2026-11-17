@@ -5,7 +5,7 @@ use std::path::Path;
 use std::rc::Rc;
 use std::time::Duration;
 
-use slint::winit_030::{winit, EventResult, WinitWindowAccessor};
+use slint::winit_030::{EventResult, WinitWindowAccessor, winit};
 use slint::{Timer, TimerMode};
 
 use windows_sys::Win32::Foundation::POINT;
@@ -148,6 +148,16 @@ fn update_output_path_ui(window: &MainWindow, app_state: &Rc<RefCell<AppState>>)
     window.set_output_full_path(output_path.into());
 }
 
+fn update_output_resolution_ui(window: &MainWindow, app_state: &Rc<RefCell<AppState>>) {
+    let dimensions = app_state.borrow().get_output_dimensions();
+
+    let output_resolution = dimensions
+        .map(|(width, height)| format!("{} × {}", width, height))
+        .unwrap_or_default();
+
+    window.set_output_resolution(output_resolution.into());
+}
+
 // --------------------------------------------------
 // Выбор и обработка видео
 // --------------------------------------------------
@@ -186,6 +196,7 @@ fn select_video(path: &Path, app_state: &Rc<RefCell<AppState>>, window: &MainWin
 
                 // Сохраняем информацию в состоянии приложения
                 app_state.borrow_mut().set_video_info(info);
+                update_output_resolution_ui(window, app_state);
             }
 
             Err(error) => {
@@ -366,22 +377,31 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let app_state_for_resolution = Rc::clone(&app_state);
 
+    let weak_window_for_resolution = main_window.as_weak();
+    let app_state_for_resolution = Rc::clone(&app_state);
+
     main_window.on_resolution_changed(move |value| {
-        let mut state = app_state_for_resolution.borrow_mut();
+        {
+            let mut state = app_state_for_resolution.borrow_mut();
 
-        let index = match value.as_str() {
-            "2160p (4K)" => 1,
-            "1440p" => 2,
-            "1080p" => 3,
-            "720p" => 4,
-            "480p" => 5,
-            _ => 0,
-        };
+            let index = match value.as_str() {
+                "2160p (4K)" => 1,
+                "1440p" => 2,
+                "1080p" => 3,
+                "720p" => 4,
+                "480p" => 5,
+                _ => 0,
+            };
 
-        let mut settings = state.encoding_settings.clone();
-        settings.resolution = Resolution::from_index(index);
+            let mut settings = state.encoding_settings.clone();
+            settings.resolution = Resolution::from_index(index);
 
-        state.update_encoding_settings(settings);
+            state.update_encoding_settings(settings);
+        }
+
+        if let Some(window) = weak_window_for_resolution.upgrade() {
+            update_output_resolution_ui(&window, &app_state_for_resolution);
+        }
     });
 
     // --------------------------------------------------

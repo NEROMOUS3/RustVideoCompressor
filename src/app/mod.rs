@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::output::OutputSettings;
-use crate::settings::{ContainerFormat, EncodingSettings};
+use crate::settings::{ContainerFormat, EncodingSettings, Resolution};
 use crate::video::{VideoFile, VideoInfo};
 
 #[derive(Debug, Default)]
@@ -57,6 +57,14 @@ impl AppState {
         self.video_info = Some(info);
     }
 
+    pub fn get_output_dimensions(&self) -> Option<(u32, u32)> {
+        let video_info = self.video_info.as_ref()?;
+
+        self.encoding_settings
+            .resolution
+            .calculate_dimensions(video_info.width, video_info.height)
+    }
+
     pub fn update_encoding_settings(&mut self, mut settings: EncodingSettings) {
         settings.normalize();
 
@@ -83,5 +91,43 @@ impl AppState {
             ContainerFormat::Mkv => "mkv",
         }
         .to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppState;
+    use crate::settings::Resolution;
+    use crate::video::VideoInfo;
+
+    #[test]
+    fn app_state_calculates_output_dimensions() {
+        let mut state = AppState::default();
+
+        state.set_video_info(VideoInfo {
+            width: 1920,
+            height: 1080,
+            duration: 60.0,
+            codec: "h264".to_string(),
+            fps: 30.0,
+            size: 10_000_000,
+        });
+
+        assert_eq!(state.get_output_dimensions(), Some((1920, 1080)));
+
+        state.encoding_settings.resolution = Resolution::Preset(720);
+
+        assert_eq!(state.get_output_dimensions(), Some((1280, 720)));
+
+        state.encoding_settings.resolution = Resolution::Preset(480);
+
+        assert_eq!(state.get_output_dimensions(), Some((854, 480)));
+    }
+
+    #[test]
+    fn app_state_returns_none_without_video_info() {
+        let state = AppState::default();
+
+        assert_eq!(state.get_output_dimensions(), None);
     }
 }
