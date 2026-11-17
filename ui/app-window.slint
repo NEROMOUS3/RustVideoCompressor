@@ -69,7 +69,7 @@ component CompressionSlider inherits Rectangle {
 export component MainWindow inherits Window {
     title: "Simple Video Compressor";
     width: 850px;
-    height: 1000px;
+    height: 1150px;
 
     in-out property <string> selected-file: "";
     in-out property <string> output-file-name: "";
@@ -109,6 +109,11 @@ export component MainWindow inherits Window {
     in-out property <string> video-size: "";
     in-out property <string> output-full-path: "";
 
+    // Состояние сжатия
+    in-out property <bool> is-compressing: false;
+    in-out property <string> compression-status: "Ожидание";
+    in-out property <float> compression-progress: 0;
+
     in-out property <int> container-index: 0;
     in-out property <int> codec-index: 0;
 
@@ -120,23 +125,30 @@ export component MainWindow inherits Window {
 
     in-out property <int> resolution-index: 0;
 
+    // Callback-и
     callback choose-file();
     callback output-file-name-changed(string);
     callback output-file-name-editing-finished();
     callback choose-output-directory();
+
     callback multipass-changed(bool);
     callback fast-start-changed(bool);
+
     callback container-changed(string);
     callback codec-changed(string);
     callback encoder-changed(string);
     callback preset-changed(string);
     callback resolution-changed(string);
 
+    callback start-compression();
+    callback stop-compression();
+
     public function finish-output-name-editing() {
         root.output-file-name-editing-finished();
         output-name-input.clear-focus();
     }
 
+    // Область для снятия фокуса с поля имени файла
     TouchArea {
         width: 100%;
         height: 100%;
@@ -146,6 +158,7 @@ export component MainWindow inherits Window {
         }
     }
 
+    // Основной вертикальный контейнер
     VerticalBox {
         padding: 24px;
         spacing: 12px;
@@ -303,6 +316,7 @@ export component MainWindow inherits Window {
         // Кнопка выбора видео
         Button {
             text: "Выбрать видео";
+
             clicked => {
                 root.choose-file();
             }
@@ -333,6 +347,7 @@ export component MainWindow inherits Window {
             }
         }
 
+        // Выбор папки сохранения
         HorizontalBox {
             spacing: 8px;
             alignment: start;
@@ -411,90 +426,70 @@ export component MainWindow inherits Window {
                         horizontal-stretch: 1;
                         spacing: 4px;
 
-                        VerticalBox {
-                            horizontal-stretch: 1;
-                            spacing: 4px;
+                        Text {
+                            text: "Контейнер";
+                            color: #AAAAAA;
+                            font-size: 12px;
+                        }
 
-                            Text {
-                                text: "Контейнер";
-                                color: #AAAAAA;
-                                font-size: 12px;
-                            }
+                        ComboBox {
+                            model: ["MP4", "MKV"];
+                            current-index: root.container-index;
 
-                            ComboBox {
-                                model: ["MP4", "MKV"];
-                                current-index: root.container-index;
-
-                                selected(value) => {
-                                    root.container-changed(value);
-                                }
+                            selected(value) => {
+                                root.container-changed(value);
                             }
                         }
 
-                        VerticalBox {
-                            horizontal-stretch: 1;
-                            spacing: 4px;
+                        Text {
+                            text: "Кодировщик";
+                            color: #AAAAAA;
+                            font-size: 12px;
+                        }
 
-                            Text {
-                                text: "Кодировщик";
-                                color: #AAAAAA;
-                                font-size: 12px;
-                            }
+                        ComboBox {
+                            model: ["Software (CPU)", "NVIDIA NVENC", "AMD AMF", "Intel Quick Sync (QSV)"];
 
-                            ComboBox {
-                                model: ["Software (CPU)", "NVIDIA NVENC", "AMD AMF", "Intel Quick Sync (QSV)"];
+                            current-index: root.encoder-index;
 
-                                current-index: root.encoder-index;
-
-                                selected(value) => {
-                                    root.encoder-changed(value);
-                                }
+                            selected(value) => {
+                                root.encoder-changed(value);
                             }
                         }
                     }
 
                     // Вторая колонка
-VerticalBox {
+                    VerticalBox {
                         horizontal-stretch: 1;
                         spacing: 4px;
 
-                        VerticalBox {
-                            horizontal-stretch: 1;
-                            spacing: 4px;
+                        Text {
+                            text: "Видеокодек";
+                            color: #AAAAAA;
+                            font-size: 12px;
+                        }
 
-                            Text {
-                                text: "Видеокодек";
-                                color: #AAAAAA;
-                                font-size: 12px;
-                            }
+                        ComboBox {
+                            model: ["H.264", "H.265"];
+                            current-index: root.codec-index;
 
-                            ComboBox {
-                                model: ["H.264", "H.265"];
-                                current-index: root.codec-index;
-
-                                selected(value) => {
-                                    root.codec-changed(value);
-                                }
+                            selected(value) => {
+                                root.codec-changed(value);
                             }
                         }
 
-                        VerticalBox {
-                            horizontal-stretch: 1;
-                            spacing: 4px;
+                        Text {
+                            text: "Пресет скорости";
+                            color: #AAAAAA;
+                            font-size: 12px;
+                        }
 
-                            Text {
-                                text: "Пресет скорости";
-                                color: #AAAAAA;
-                                font-size: 12px;
-                            }
+                        ComboBox {
+                            model: root.encoder-presets;
+                            current-index: root.preset-index;
 
-                            ComboBox {
-                                model: root.encoder-presets;
-                                current-index: root.preset-index;
-
-                                selected(value) => {
-                                    root.preset-changed(value);
-                                }
+                            selected(value) => {
+                                root.preset-changed(value);
                             }
                         }
                     }
@@ -595,6 +590,80 @@ VerticalBox {
 
                         toggled => {
                             root.fast-start-changed(self.checked);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Управление сжатием
+        Rectangle {
+            width: 100%;
+            border-width: 1px;
+            border-radius: 10px;
+            border-color: #444444;
+            background: #252525;
+
+            VerticalBox {
+                padding: 12px;
+                spacing: 10px;
+
+                Text {
+                    text: "Сжатие видео";
+                    color: #FFFFFF;
+                    font-size: 18px;
+                    font-weight: 600;
+                }
+
+                // Статус процесса
+                Text {
+                    text: root.compression-status;
+                    color: root.is-compressing ? #36A66B : #AAAAAA;
+                    font-size: 14px;
+                }
+
+                // Прогресс
+                Rectangle {
+                    width: 100%;
+                    height: 10px;
+                    border-radius: 5px;
+                    background: #444444;
+
+                    Rectangle {
+                        width: parent.width * root.compression-progress / 100;
+                        height: parent.height;
+                        border-radius: 5px;
+                        background: #36A66B;
+                    }
+                }
+
+                Text {
+                    text: "\{round(root.compression-progress)}%";
+                    color: #AAAAAA;
+                    font-size: 12px;
+                }
+
+                // Кнопки управления
+                HorizontalBox {
+                    spacing: 12px;
+
+                    Button {
+                        horizontal-stretch: 1;
+                        text: "Сжать видео";
+                        enabled: !root.is-compressing;
+
+                        clicked => {
+                            root.start-compression();
+                        }
+                    }
+
+                    Button {
+                        horizontal-stretch: 1;
+                        text: "Остановить";
+                        enabled: root.is-compressing;
+
+                        clicked => {
+                            root.stop-compression();
                         }
                     }
                 }

@@ -221,18 +221,27 @@ fn select_video(path: &Path, app_state: &Rc<RefCell<AppState>>, window: &MainWin
 // --------------------------------------------------
 
 fn main() -> Result<(), slint::PlatformError> {
+    // Проверка наличия FFmpeg и FFprobe
+    if let Err(error) = ffmpeg::check_tools() {
+        rfd::MessageDialog::new()
+            .set_title("Необходимые компоненты не найдены")
+            .set_description(&format!(
+                "Программа не обнаружила необходимые компоненты FFmpeg.\n\n\
+                Для работы приложения необходимо самостоятельно установить \
+                FFmpeg и FFprobe и добавить их в системную переменную PATH.\n\n\
+                Ошибка:\n{}\n\n\
+                После установки перезапустите приложение.",
+                error
+            ))
+            .set_level(rfd::MessageLevel::Error)
+            .set_buttons(rfd::MessageButtons::Ok)
+            .show();
+
+        return Ok(());
+    }
+
+    // Создание главного окна
     let main_window = MainWindow::new()?;
-
-    // Получение версий FFmpeg и FFprobe
-    match ffmpeg::get_tool_version("ffmpeg") {
-        Ok(version) => println!("FFmpeg: {}", version),
-        Err(error) => println!("FFmpeg: {}", error),
-    }
-
-    match ffmpeg::get_tool_version("ffprobe") {
-        Ok(version) => println!("FFprobe: {}", version),
-        Err(error) => println!("FFprobe: {}", error),
-    }
 
     // Создание состояния приложения
     let app_state = Rc::new(RefCell::new(AppState::default()));
